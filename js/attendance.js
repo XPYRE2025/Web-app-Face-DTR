@@ -25,6 +25,11 @@ const todayCount   = document.getElementById('today-count');
 let faceMatcher    = null;
 let isDetecting    = false;
 let resultTimeout  = null;
+let detectOptions  = null;
+let initTimeoutId  = null;
+let initStage      = 'starting';
+
+const INIT_TIMEOUT_MS = 30000;
 
 /* ---- System status badges ---- */
 const sysStatus = {
@@ -40,28 +45,58 @@ function setSysStatus(key, state, label) {
   el.className = `sys-badge ${state}`;
 }
 
+function setInitStage(stage) {
+  initStage = stage;
+}
+
+function startInitWatchdog() {
+  stopInitWatchdog();
+  const timeoutEl = document.getElementById('init-timeout-msg');
+  if (timeoutEl) timeoutEl.classList.add('hidden');
+
+  initTimeoutId = setTimeout(() => {
+    const stageMessage = {
+      starting: 'starting the app',
+      camera: 'requesting camera access',
+      models: 'loading AI models',
+      detection: 'starting face detection',
+    }[initStage] || 'initializing';
+
+    if (timeoutEl) {
+      timeoutEl.innerHTML = `<span>Initialization timed out while ${stageMessage}. If camera is blocked, allow permission in browser settings. If models are stuck, check internet and reload.</span>`;
+      timeoutEl.classList.remove('hidden');
+    }
+  }, INIT_TIMEOUT_MS);
+}
+
+function stopInitWatchdog() {
+  if (initTimeoutId) {
+    clearTimeout(initTimeoutId);
+    initTimeoutId = null;
+  }
+}
+
 /* ============================================================
    INITIALISATION
    ============================================================ */
 async function init() {
-  await initAdminHash();
+  startInitWatchdog();
+
+  // Admin hash setup should not block attendance camera startup.
+  try {
+    await initAdminHash();
+  } catch {
+    showToast('Admin password initialization failed. Attendance camera will still run.', 'warning', 4500);
+  }
 
   // Set up admin shortcut listener
   setupAdminShortcut();
 
-  // Load models
-  setSysStatus('models', 'loading', 'Loading…');
-  try {
-    await loadModels();
-    setSysStatus('models', 'ok', 'Ready');
-  } catch (err) {
-    setSysStatus('models', 'error', 'Failed');
-    detectionLbl.textContent = '⚠️ Model load failed. Check your connection.';
-    showToast('Failed to load AI models. Please reload the page.', 'error', 6000);
-    return;
-  }
+  // Render today's attendance even if camera/models are unavailable.
+  renderToday();
 
-  // Start camera
+  // Start camera first so browser can prompt for permission immediately.
+  setInitStage('camera');
   setSysStatus('camera', 'loading', 'Starting…');
   try {
     await startCamera();
@@ -69,27 +104,46 @@ async function init() {
     scanLine.classList.add('visible');
     statusDot.className = 'status-dot scanning';
   } catch (err) {
+    stopInitWatchdog();
     setSysStatus('camera', 'error', 'No Access');
     detectionLbl.textContent = '⚠️ Camera access denied. Please allow camera access.';
     showToast('Camera access denied. Please allow camera permissions.', 'error', 6000);
     return;
   }
 
+  // Load models
+  setInitStage('models');
+  setSysStatus('models', 'loading', 'Loading…');
+  try {
+    await loadModels();
+    setSysStatus('models', 'ok', 'Ready');
+  } catch (err) {
+    stopInitWatchdog();
+    setSysStatus('models', 'error', 'Failed');
+    setSysStatus('faces', 'error', 'Unavailable');
+    detectionLbl.textContent = '⚠️ AI models failed to load. Camera is active but recognition is disabled.';
+    showToast('Failed to load AI models. Check your internet connection.', 'error', 6000);
+    return;
+  }
+
   // Build face matcher from stored users
   buildFaceMatcher();
 
-  // Render today's attendance
-  renderToday();
-
   // Start detection loop
+  setInitStage('detection');
   isDetecting = true;
   detectionLoop();
+  stopInitWatchdog();
 }
 
 /* ============================================================
    LOAD FACE-API MODELS
    ============================================================ */
 async function loadModels() {
+  if (!window.faceapi) {
+    throw new Error('face-api library failed to load');
+  }
+
   const progressEl   = document.getElementById('model-progress-fill');
   const progressLbl  = document.getElementById('model-progress-label');
 
@@ -107,6 +161,8 @@ async function loadModels() {
   setProgress(70, 'Loading recognition model…');
   await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
 
+  detectOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 });
+
   setProgress(100, 'Models ready ✓');
 }
 
@@ -114,12 +170,21 @@ async function loadModels() {
    CAMERA
    ============================================================ */
 async function startCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('Camera API unavailable in this browser/context');
+  }
+
   const stream = await navigator.mediaDevices.getUserMedia({
     video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: 'user' },
     audio: false,
   });
   video.srcObject = stream;
-  return new Promise(resolve => { video.onloadedmetadata = () => resolve(); });
+
+  await new Promise(resolve => {
+    video.onloadedmetadata = () => resolve();
+  });
+
+  await video.play();
 }
 
 /* ============================================================
@@ -153,14 +218,12 @@ function buildFaceMatcher() {
 /* ============================================================
    DETECTION LOOP
    ============================================================ */
-const DETECT_OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 });
-
 async function detectionLoop() {
-  if (!isDetecting) return;
+  if (!isDetecting || !window.faceapi || !detectOptions) return;
 
   try {
     const detections = await faceapi
-      .detectAllFaces(video, DETECT_OPTIONS)
+      .detectAllFaces(video, detectOptions)
       .withFaceLandmarks(true)
       .withFaceDescriptors();
 
@@ -310,29 +373,34 @@ function renderToday() {
 }
 
 /* ============================================================
-   ADMIN SHORTCUT  (type A-D-M-I-N on keyboard)
+   ADMIN SHORTCUTS
+   Primary: Ctrl + Alt + M
+   Fallback: Alt + Shift + A
    ============================================================ */
-const SECRET_SEQUENCE = 'admin';
-let keyBuffer = '';
-let keyTimer  = null;
+const ADMIN_SHORTCUTS = [
+  { key: 'm', ctrl: true, alt: true, shift: false },
+  { key: 'a', ctrl: false, alt: true, shift: true },
+];
+
+function matchesShortcut(e, shortcut) {
+  const key = (e.key || '').toLowerCase();
+  return key === shortcut.key
+    && e.ctrlKey === shortcut.ctrl
+    && e.altKey === shortcut.alt
+    && e.shiftKey === shortcut.shift;
+}
 
 function setupAdminShortcut() {
   document.addEventListener('keydown', e => {
     // Ignore if user is typing in an input
     if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
 
-    keyBuffer += e.key.toLowerCase();
-    if (keyBuffer.length > SECRET_SEQUENCE.length) {
-      keyBuffer = keyBuffer.slice(-SECRET_SEQUENCE.length);
-    }
+    const isShortcut = ADMIN_SHORTCUTS.some(shortcut => matchesShortcut(e, shortcut));
 
-    clearTimeout(keyTimer);
-    keyTimer = setTimeout(() => { keyBuffer = ''; }, 2000);
+    if (!isShortcut || e.repeat) return;
 
-    if (keyBuffer === SECRET_SEQUENCE) {
-      keyBuffer = '';
-      openAdminModal();
-    }
+    e.preventDefault();
+    openAdminModal();
   });
 }
 

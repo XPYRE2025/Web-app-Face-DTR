@@ -14,15 +14,32 @@ let capturedThumbs  = [];   // Array of data URLs
 let isCapturing     = false;
 let currentPage     = 1;
 const PAGE_SIZE     = 10;
+let regDetectOptions = null;
 
 /* ============================================================
    INIT
    ============================================================ */
 async function init() {
+  const loginView = document.getElementById('login-view');
+  const adminView = document.getElementById('admin-view');
+
   // Verify admin session
   if (!sessionStorage.getItem('facedtr_admin')) {
-    window.location.href = 'admin.html'; // redirects to login
+    // If this script is running on admin.html, stay on login view instead of redirecting.
+    // Redirect only when this script is used on another protected page.
+    if (loginView && adminView) {
+      loginView.style.display = 'block';
+      adminView.style.display = 'none';
+      return;
+    }
+    window.location.href = 'admin.html';
     return;
+  }
+
+  // Ensure authenticated state shows the admin panel on admin.html
+  if (loginView && adminView) {
+    loginView.style.display = 'none';
+    adminView.style.display = 'block';
   }
 
   // Update admin name display
@@ -56,9 +73,15 @@ async function init() {
    LOAD MODELS
    ============================================================ */
 async function loadModels() {
+  if (!window.faceapi) {
+    throw new Error('face-api library failed to load');
+  }
+
   await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
   await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
   await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
+  regDetectOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 });
 }
 
 /* ============================================================
@@ -100,13 +123,24 @@ async function startRegisterCamera() {
 
   if (registerStream) return; // already running
 
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Camera is not supported in this browser or context.', 'error');
+    return;
+  }
+
   try {
     registerStream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
       audio: false,
     });
     video.srcObject = registerStream;
-    video.onloadedmetadata = () => startRegisterDetectionLoop(video, canvas);
+
+    await new Promise(resolve => {
+      video.onloadedmetadata = () => resolve();
+    });
+
+    await video.play();
+    startRegisterDetectionLoop(video, canvas);
   } catch (err) {
     showToast('Camera access denied. Face capture unavailable.', 'error');
   }
@@ -120,14 +154,13 @@ function stopRegisterCamera() {
 }
 
 /* ---- Detection loop for registration ---- */
-const REG_DETECT_OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 });
-
 async function startRegisterDetectionLoop(video, canvas) {
   async function loop() {
     if (!registerStream) return;
+    if (!window.faceapi || !regDetectOptions) return;
     if (video.readyState >= 2) {
       try {
-        const det = await faceapi.detectSingleFace(video, REG_DETECT_OPTIONS).withFaceLandmarks(true);
+        const det = await faceapi.detectSingleFace(video, regDetectOptions).withFaceLandmarks(true);
         const ctx = canvas.getContext('2d');
         const dims = faceapi.matchDimensions(canvas, video, true);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -187,7 +220,7 @@ async function captureSample() {
 
   try {
     const det = await faceapi
-      .detectSingleFace(video, REG_DETECT_OPTIONS)
+      .detectSingleFace(video, regDetectOptions)
       .withFaceLandmarks(true)
       .withFaceDescriptor();
 

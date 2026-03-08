@@ -59,6 +59,10 @@
           </div>
           <div class="progress-label" id="model-progress-label">Loading…</div>
         </div>
+
+        <div class="alert alert-warning hidden" id="init-timeout-msg" role="status" style="margin-top:.75rem; margin-bottom:0;">
+          <span>Initialization is taking longer than expected. Check internet/camera permission, then refresh.</span>
+        </div>
       </div>
     </div>
 
@@ -162,7 +166,7 @@
 </script>
 
 <!-- Corner hint for admin shortcut -->
-<div class="corner-hint" title="Type 'admin' on keyboard to open admin login">🔑</div>
+<div class="corner-hint" title="Press Ctrl + Alt + M (or Alt + Shift + A) to open admin login">🔑</div>
 
 <!-- Current date display -->
 <script>
@@ -174,9 +178,9 @@
   }
 
   // Hide video placeholder once camera starts
-  const video = document.getElementById('video');
-  if (video) {
-    video.addEventListener('play', () => {
+  const liveVideo = document.getElementById('video');
+  if (liveVideo) {
+    liveVideo.addEventListener('play', () => {
       const ph = document.getElementById('video-placeholder');
       if (ph) ph.style.display = 'none';
     });
