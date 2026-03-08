@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Face DTR – Admin Panel</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- =====================================================
+     ADMIN LOGIN VIEW
+     (shown when not authenticated)
+     ===================================================== -->
+<div id="login-view">
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">🔐</div>
+        <h1>Admin Panel</h1>
+        <p>Face DTR – Attendance System</p>
+      </div>
+
+      <form onsubmit="handleAdminLogin(event)">
+        <div class="form-group">
+          <label for="login-pass">Admin Password</label>
+          <div class="password-wrapper">
+            <input
+              type="password"
+              id="login-pass"
+              class="form-control"
+              placeholder="Enter password"
+              autocomplete="current-password"
+              required
+              autofocus
+            />
+            <button type="button" class="toggle-password" onclick="toggleLoginPass(this)" aria-label="Toggle password visibility">👁️</button>
+          </div>
+        </div>
+
+        <div class="alert alert-danger hidden" id="login-error" role="alert"></div>
+
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">
+          Sign In →
+        </button>
+      </form>
+
+      <div class="login-hint">
+        First-time default password: <code>FaceDTR@Admin2025</code><br/>
+        You can change this after logging in.
+      </div>
+
+      <div style="margin-top:1.25rem; text-align:center;">
+        <a href="index.html" style="font-size:.8rem; color:var(--text-muted); text-decoration:none;">
+          ← Back to Attendance Page
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================
+     ADMIN PANEL VIEW
+     (shown when authenticated)
+     ===================================================== -->
+<div id="admin-view" style="display:none;">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">🔐</div>
+        <div class="logo-text">
+          <h1>Admin Panel</h1>
+          <p>Face DTR Management Console</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:1rem;">
+        <span class="header-badge" id="admin-date"></span>
+        <a href="index.html" class="btn btn-sm btn-outline" style="color:#fff; border-color:rgba(255,255,255,.4);">
+          👁️ Attendance View
+        </a>
+        <button class="btn btn-sm btn-outline" onclick="logout()" style="color:#fff; border-color:rgba(255,255,255,.4);">
+          🚪 Logout
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div class="main-container">
+    <div class="admin-layout">
+
+      <!-- ---- Sidebar Nav ---- -->
+      <nav class="admin-nav" aria-label="Admin navigation">
+        <div class="admin-nav-header">
+          <p>Logged in as</p>
+          <strong>Administrator</strong>
+        </div>
+        <ul class="admin-nav-list" role="tablist">
+          <li class="admin-nav-item" data-panel="dashboard" role="tab">
+            <span class="nav-icon">📊</span> Dashboard
+          </li>
+          <li class="admin-nav-item" data-panel="register" role="tab">
+            <span class="nav-icon">➕</span> Register Face
+          </li>
+          <li class="admin-nav-item" data-panel="users" role="tab">
+            <span class="nav-icon">👥</span> Manage Users
+          </li>
+          <li class="admin-nav-item" data-panel="attendance" role="tab">
+            <span class="nav-icon">📋</span> Attendance Records
+          </li>
+          <li class="admin-nav-item" data-panel="settings" role="tab">
+            <span class="nav-icon">⚙️</span> Settings
+          </li>
+        </ul>
+        <div class="admin-nav-footer">
+          <button class="btn btn-sm btn-outline btn-full" onclick="logout()">🚪 Logout</button>
+        </div>
+      </nav>
+
+      <!-- ---- Panels ---- -->
+      <div class="admin-content">
+
+        <!-- ======= DASHBOARD ======= -->
+        <div id="panel-dashboard" class="admin-panel" role="tabpanel">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-icon blue">👥</div>
+              <div>
+                <div class="stat-value" id="stat-total-users">0</div>
+                <div class="stat-label">Registered Users</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon green">✅</div>
+              <div>
+                <div class="stat-value" id="stat-present-today">0</div>
+                <div class="stat-label">Present Today</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon orange">🕐</div>
+              <div>
+                <div class="stat-value" id="stat-late-today">0</div>
+                <div class="stat-label">Late Today</div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon teal">📋</div>
+              <div>
+                <div class="stat-value" id="stat-total-records">0</div>
+                <div class="stat-label">Total Records</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Activity -->
+          <div class="panel-card">
+            <div class="panel-header">
+              <h2>📋 Today's Activity</h2>
+              <button class="btn btn-sm btn-outline" onclick="switchPanel('attendance')">View All →</button>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Type</th>
+                    <th>Time</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboard-today-tbody">
+                  <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">No activity today</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======= REGISTER FACE ======= -->
+        <div id="panel-register" class="admin-panel" role="tabpanel">
+          <div class="panel-card">
+            <div class="panel-header">
+              <h2>➕ Register New Face</h2>
+              <span style="font-size:.8rem; color:var(--text-muted);">Minimum 3 face samples recommended</span>
+            </div>
+            <div class="panel-body">
+              <div class="register-layout">
+
+                <!-- Camera -->
+                <div>
+                  <div class="register-camera-wrap">
+                    <video id="reg-video" autoplay muted playsinline></video>
+                    <canvas id="reg-overlay"></canvas>
+                    <div class="capture-overlay">
+                      <div class="face-guide"></div>
+                    </div>
+                  </div>
+                  <p id="reg-status" style="text-align:center; font-size:.8rem; padding:.5rem; color:var(--text-muted);">
+                    Position face in frame
+                  </p>
+                  <div style="display:flex; gap:.75rem; justify-content:center; margin-top:.5rem;">
+                    <button class="btn btn-accent" id="btn-capture" onclick="captureSample()" disabled>
+                      📸 Capture Sample
+                    </button>
+                    <button class="btn btn-outline btn-sm" onclick="clearCaptures()">
+                      🗑️ Clear
+                    </button>
+                  </div>
+
+                  <!-- Sample thumbnails -->
+                  <div class="sample-list" id="sample-grid">
+                    <div class="sample-thumb">1</div>
+                    <div class="sample-thumb">2</div>
+                    <div class="sample-thumb">3</div>
+                    <div class="sample-thumb">4</div>
+                    <div class="sample-thumb">5</div>
+                  </div>
+                  <p style="font-size:.72rem; color:var(--text-muted); text-align:center; margin-top:.4rem;">
+                    Capture 3–5 samples from different angles for best accuracy
+                  </p>
+                </div>
+
+                <!-- Form -->
+                <div>
+                  <div class="form-group">
+                    <label for="reg-name">Full Name <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="reg-name" class="form-control" placeholder="e.g. Juan dela Cruz" required />
+                  </div>
+                  <div class="form-group">
+                    <label for="reg-dept">Department</label>
+                    <input type="text" id="reg-dept" class="form-control" placeholder="e.g. Information Technology" />
+                  </div>
+                  <div class="form-group">
+                    <label for="reg-empid">Employee / Student ID</label>
+                    <input type="text" id="reg-empid" class="form-control" placeholder="e.g. EMP-001" />
+                  </div>
+
+                  <div style="margin-top:1rem;">
+                    <button
+                      class="btn btn-primary btn-full"
+                      id="btn-save-user"
+                      onclick="saveUser()"
+                      disabled
+                    >
+                      💾 Save & Register User
+                    </button>
+                  </div>
+
+                  <div class="alert alert-warning" style="margin-top:1rem; display:block;">
+                    <strong>Tips for best accuracy:</strong>
+                    <ul style="margin:.4rem 0 0 1rem; font-size:.78rem; line-height:1.7;">
+                      <li>Ensure your face is well-lit</li>
+                      <li>Remove glasses or hats if possible</li>
+                      <li>Capture samples facing front, slight left, slight right</li>
+                      <li>Maintain a neutral expression</li>
+                    </ul>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======= MANAGE USERS ======= -->
+        <div id="panel-users" class="admin-panel" role="tabpanel">
+          <div class="panel-card">
+            <div class="panel-header">
+              <h2>👥 Registered Users</h2>
+              <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
+                <input
+                  type="text"
+                  id="user-search"
+                  class="form-control"
+                  placeholder="🔍 Search users…"
+                  style="max-width:200px; padding:.4rem .75rem;"
+                  oninput="renderUsers()"
+                />
+                <button class="btn btn-accent btn-sm" onclick="switchPanel('register')">
+                  ➕ Register New
+                </button>
+              </div>
+            </div>
+            <div class="users-grid" id="users-grid">
+              <div class="empty-state" style="grid-column:1/-1">
+                <span>👥</span>
+                <p>No users registered yet. Register a face to get started.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======= ATTENDANCE RECORDS ======= -->
+        <div id="panel-attendance" class="admin-panel" role="tabpanel">
+          <div class="panel-card">
+            <div class="panel-header">
+              <h2>📋 Attendance Records</h2>
+              <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
+                <span id="attendance-count" style="font-size:.8rem; color:var(--text-muted);">0 records</span>
+                <button class="btn btn-sm btn-accent" onclick="exportCSV()">
+                  ⬇️ Export CSV
+                </button>
+              </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+              <input
+                type="date"
+                id="filter-date"
+                class="form-control"
+                title="Filter by date"
+                oninput="applyFilters()"
+              />
+              <input
+                type="text"
+                id="filter-user"
+                class="form-control"
+                placeholder="Filter by name…"
+                oninput="applyFilters()"
+              />
+              <select id="filter-type" class="form-control" onchange="applyFilters()">
+                <option value="">All Types</option>
+                <option value="time-in">Time-In</option>
+                <option value="time-out">Time-Out</option>
+              </select>
+              <button class="btn btn-sm btn-outline" onclick="clearFilters()">Clear</button>
+            </div>
+
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Type / Status</th>
+                    <th>Time</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody id="attendance-tbody">
+                  <tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">No records yet</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pagination" id="pagination"></div>
+          </div>
+        </div>
+
+        <!-- ======= SETTINGS ======= -->
+        <div id="panel-settings" class="admin-panel" role="tabpanel">
+          <div class="panel-card">
+            <div class="panel-header">
+              <h2>⚙️ Settings</h2>
+            </div>
+            <div class="panel-body">
+
+              <!-- Change Password -->
+              <h3 style="font-size:.95rem; margin-bottom:1rem; color:var(--text-secondary);">🔑 Change Admin Password</h3>
+              <form onsubmit="submitChangePassword(event)" style="max-width:400px;">
+                <div class="form-group">
+                  <label for="change-pass-current">Current Password</label>
+                  <input type="password" id="change-pass-current" class="form-control" placeholder="Current password" required />
+                </div>
+                <div class="form-group">
+                  <label for="change-pass-new">New Password</label>
+                  <input type="password" id="change-pass-new" class="form-control" placeholder="Min. 8 characters" required minlength="8" />
+                </div>
+                <div class="form-group">
+                  <label for="change-pass-confirm">Confirm New Password</label>
+                  <input type="password" id="change-pass-confirm" class="form-control" placeholder="Repeat new password" required />
+                </div>
+                <div class="alert alert-danger hidden" id="change-pass-error" role="alert"></div>
+                <button type="submit" class="btn btn-primary">Update Password</button>
+              </form>
+
+              <hr style="margin:2rem 0; border:none; border-top:1px solid var(--border);" />
+
+              <!-- Danger Zone -->
+              <h3 style="font-size:.95rem; margin-bottom:1rem; color:var(--danger);">⚠️ Danger Zone</h3>
+              <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                <button class="btn btn-danger btn-sm" onclick="clearAllAttendance()">
+                  🗑️ Clear All Attendance Records
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="clearAllData()">
+                  💣 Clear ALL Data (Users + Attendance)
+                </button>
+              </div>
+              <p style="font-size:.75rem; color:var(--text-muted); margin-top:.75rem;">
+                ⚠️ These actions are irreversible. All data is stored locally in your browser.
+              </p>
+
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /.admin-content -->
+    </div><!-- /.admin-layout -->
+  </div><!-- /.main-container -->
+</div><!-- /#admin-view -->
+
+<!-- Loading Overlay -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="spinner"></div>
+  <p class="loading-msg">Loading…</p>
+</div>
+
+<!-- ===================== INLINE LOGIC ===================== -->
+<script>
+  /* Simple admin login guard on this page */
+  function checkSession() {
+    if (sessionStorage.getItem('facedtr_admin') === '1') {
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('admin-view').style.display  = 'block';
+      // Set admin date
+      const el = document.getElementById('admin-date');
+      if (el) el.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    }
+  }
+  checkSession();
+
+  async function handleAdminLogin(e) {
+    e.preventDefault();
+    const pass   = document.getElementById('login-pass').value;
+    const errEl  = document.getElementById('login-error');
+    const btn    = document.getElementById('login-btn');
+
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
+    errEl.classList.add('hidden');
+
+    // Need utils loaded for verifyAdminPassword
+    await initAdminHash();
+    const ok = await verifyAdminPassword(pass);
+    if (ok) {
+      sessionStorage.setItem('facedtr_admin', '1');
+      document.getElementById('login-view').style.display = 'none';
+      document.getElementById('admin-view').style.display  = 'block';
+      const el = document.getElementById('admin-date');
+      if (el) el.textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      init(); // Initialize admin panel
+    } else {
+      errEl.textContent = '❌ Incorrect password. Please try again.';
+      errEl.classList.remove('hidden');
+      document.getElementById('login-pass').value = '';
+      document.getElementById('login-pass').focus();
+      btn.disabled = false;
+      btn.textContent = 'Sign In →';
+    }
+  }
+
+  function toggleLoginPass(btn) {
+    const input = document.getElementById('login-pass');
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    btn.textContent = input.type === 'password' ? '👁️' : '🙈';
+  }
+
+  function clearAllAttendance() {
+    if (!confirm('Delete ALL attendance records? This cannot be undone.')) return;
+    localStorage.removeItem('facedtr_attendance');
+    renderAttendanceTable();
+    updateStats();
+    showToast('All attendance records cleared.', 'default');
+  }
+
+  function clearAllData() {
+    if (!confirm('Delete ALL users and attendance records? This will reset the entire system.')) return;
+    if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
+    localStorage.removeItem('facedtr_users');
+    localStorage.removeItem('facedtr_attendance');
+    renderAttendanceTable();
+    renderUsers();
+    updateStats();
+    showToast('All data has been cleared.', 'default');
+  }
+
+  // Re-render today's activity on dashboard
+  function renderDashboardToday() {
+    const tbody  = document.getElementById('dashboard-today-tbody');
+    if (!tbody) return;
+    const records = getAttendance().filter(r => isToday(r.timestamp))
+                                   .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
+                                   .slice(0, 10);
+    if (records.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">No activity today</td></tr>`;
+      return;
+    }
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    tbody.innerHTML = records.map(r => {
+      const badgeCls = r.type === 'time-in' ? (r.status === 'late' ? 'badge-late' : 'badge-in') : 'badge-out';
+      const badgeLbl = r.type === 'time-in' ? (r.status === 'late' ? '🕐 Late' : '🟢 In') : '🟡 Out';
+      return `<tr>
+        <td><strong>${escHtml(r.userName||'')}</strong></td>
+        <td>${escHtml(r.department||'General')}</td>
+        <td><span class="badge ${badgeCls}">${badgeLbl}</span></td>
+        <td>${new Date(r.timestamp).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</td>
+        <td>${r.confidence ? r.confidence+'%' : '–'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Override switchPanel to also refresh dashboard
+  document.addEventListener('DOMContentLoaded', () => {
+    // Wrap switchPanel to call renderDashboardToday when showing dashboard
+    const originalSwitch = window.switchPanel;
+    if (originalSwitch) {
+      window.switchPanel = function(panelId) {
+        originalSwitch(panelId);
+        if (panelId === 'dashboard') renderDashboardToday();
+      };
+    }
+  });
+</script>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/admin.js"></script>
+
+<!-- Trigger dashboard render after admin.js loads init -->
+<script>
+  // After admin.js init completes, also render dashboard today
+  document.addEventListener('DOMContentLoaded', () => {
+    if (sessionStorage.getItem('facedtr_admin') === '1') {
+      setTimeout(renderDashboardToday, 200);
+    }
+  });
+</script>
+
+</body>
+</html>

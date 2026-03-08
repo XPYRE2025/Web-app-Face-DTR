@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Face DTR – Attendance System</title>
+  <meta name="description" content="Facial recognition attendance system using AI" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👁️</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ===================== HEADER ===================== -->
+<header class="app-header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">👁️</div>
+      <div class="logo-text">
+        <h1>Face DTR</h1>
+        <p>Facial Recognition Attendance</p>
+      </div>
+    </div>
+    <span class="header-badge" id="current-date"></span>
+  </div>
+</header>
+
+<!-- ===================== MAIN ===================== -->
+<main class="main-container">
+  <div class="attendance-layout">
+
+    <!-- ---- Camera Card ---- -->
+    <div class="camera-card">
+      <div class="camera-card-header">
+        <h2>📷 Live Camera Feed</h2>
+        <span class="status-dot scanning" id="status-dot"></span>
+      </div>
+
+      <div class="video-wrapper">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+
+        <div class="scan-line" id="scan-line"></div>
+
+        <div class="video-placeholder" id="video-placeholder">
+          <span>📷</span>
+          <p>Camera initializing…</p>
+        </div>
+
+        <div class="detection-label" id="detection-label">
+          Initializing AI models…
+        </div>
+      </div>
+
+      <!-- Model loading progress -->
+      <div style="padding:.75rem 1rem; border-top:1px solid var(--border); background:var(--bg);">
+        <div class="model-progress">
+          <div class="progress-bar">
+            <div class="progress-fill" id="model-progress-fill"></div>
+          </div>
+          <div class="progress-label" id="model-progress-label">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- Sidebar ---- -->
+    <aside class="sidebar">
+
+      <!-- Recognition Result -->
+      <div class="recognition-result" id="recognition-result">
+        <div class="result-avatar">✅</div>
+        <div class="result-info">
+          <h3 id="result-name">–</h3>
+          <p id="result-time">–</p>
+          <span id="result-type" class="badge badge-in">–</span>
+          <div class="confidence-bar" style="margin-top:.4rem;">
+            <div class="confidence-fill" id="result-conf-fill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Status -->
+      <div class="status-card">
+        <div class="status-card-header">
+          <span>🔧</span> System Status
+        </div>
+        <div class="status-card-body">
+          <ul class="sys-status-list">
+            <li class="sys-status-item">
+              <span>Camera</span>
+              <span class="sys-badge loading" id="sys-camera">Starting…</span>
+            </li>
+            <li class="sys-status-item">
+              <span>AI Models</span>
+              <span class="sys-badge loading" id="sys-models">Loading…</span>
+            </li>
+            <li class="sys-status-item">
+              <span>Registered Faces</span>
+              <span class="sys-badge loading" id="sys-faces">Checking…</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Today's Attendance -->
+      <div class="today-card">
+        <div class="today-card-header">
+          <h3>📋 Today's Attendance</h3>
+          <span class="count-badge" id="today-count">0</span>
+        </div>
+        <div class="today-list" id="today-list">
+          <div class="empty-state">
+            <span>📋</span>
+            <p>No attendance recorded today</p>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+  </div>
+</main>
+
+<!-- ===================== ADMIN LOGIN MODAL ===================== -->
+<div class="modal-backdrop" id="admin-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="admin-modal-title">🔐 Admin Login</h2>
+      <button class="close-btn" onclick="closeAdminModal()" aria-label="Close">✕</button>
+    </div>
+    <form class="modal-body" onsubmit="submitAdminLogin(event)">
+      <div class="form-group">
+        <label for="admin-pass-input">Admin Password</label>
+        <div class="password-wrapper">
+          <input
+            type="password"
+            id="admin-pass-input"
+            class="form-control"
+            placeholder="Enter admin password"
+            autocomplete="current-password"
+            required
+          />
+          <button type="button" class="toggle-password" onclick="togglePassVisibility(this)" aria-label="Toggle password visibility">👁️</button>
+        </div>
+      </div>
+
+      <div class="alert alert-danger hidden" id="admin-login-error" role="alert"></div>
+
+      <button type="submit" class="btn btn-primary btn-full">
+        Login to Admin Panel →
+      </button>
+    </form>
+    <div class="modal-footer" style="justify-content:center;">
+      <small style="color:var(--text-muted)">First-time password: <code>FaceDTR@Admin2025</code></small>
+    </div>
+  </div>
+</div>
+
+<!-- Close modal on backdrop click -->
+<script>
+  document.getElementById('admin-modal-backdrop').addEventListener('click', function(e) {
+    if (e.target === this) closeAdminModal();
+  });
+</script>
+
+<!-- Corner hint for admin shortcut -->
+<div class="corner-hint" title="Type 'admin' on keyboard to open admin login">🔑</div>
+
+<!-- Current date display -->
+<script>
+  const dateEl = document.getElementById('current-date');
+  if (dateEl) {
+    dateEl.textContent = new Date().toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+  }
+
+  // Hide video placeholder once camera starts
+  const video = document.getElementById('video');
+  if (video) {
+    video.addEventListener('play', () => {
+      const ph = document.getElementById('video-placeholder');
+      if (ph) ph.style.display = 'none';
+    });
+  }
+</script>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/attendance.js"></script>
+
+</body>
+</html>
